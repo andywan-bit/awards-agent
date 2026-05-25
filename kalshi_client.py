@@ -11,6 +11,7 @@ KALSHI_API_KEY    = os.environ.get("KALSHI_API_KEY")
 KALSHI_KEY_ID     = os.environ.get("KALSHI_KEY_ID")
 
 def load_private_key(pem_string: str):
+    pem_string = pem_string.replace("\\n", "\n")
     return serialization.load_pem_private_key(
         pem_string.encode("utf-8"),
         password=None,
