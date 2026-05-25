@@ -1,104 +1,80 @@
 # ============================================================
-#  alerter.py — sends SMS alerts via Twilio when edges found
+#  alerter.py — sends email alerts via Gmail SMTP
 # ============================================================
 
 import json
 import os
-import requests
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 from datetime import datetime
-from config import (
-    TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN,
-    TWILIO_FROM_NUMBER, TWILIO_TO_NUMBER
-)
 
-SENT_LOG = "sent_alerts.json"
+SENT_LOG = "/tmp/sent_alerts.json"
 
-
-def load_sent_alerts() -> dict:
-    """Load log of already-sent alerts to avoid duplicates."""
-    if os.path.exists(SENT_LOG):
-        with open(SENT_LOG) as f:
-            return json.load(f)
-    return {}
+GMAIL_USER     = os.environ.get("GMAIL_USER")
+GMAIL_PASSWORD = os.environ.get("GMAIL_PASSWORD")
+ALERT_TO_EMAIL = os.environ.get("ALERT_TO_EMAIL", GMAIL_USER)
 
 
-def save_sent_alert(nominee: str, edge: float):
-    """Record that we sent an alert for this nominee+edge."""
+def load_sent_alerts():
+    try:
+        with open(SENT_LOG) as f: return json.load(f)
+    except: return {}
+
+def save_sent_alert(nominee, edge):
     log = load_sent_alerts()
     log[nominee] = {"edge": edge, "sent_at": datetime.utcnow().isoformat()}
-    with open(SENT_LOG, "w") as f:
-        json.dump(log, f, indent=2)
+    with open(SENT_LOG, "w") as f: json.dump(log, f, indent=2)
 
-
-def already_alerted(nominee: str, current_edge: float) -> bool:
-    """
-    Return True if we already sent an alert for this nominee
-    at a similar edge (within 3%). Prevents spam.
-    """
+def already_alerted(nominee, current_edge):
     log = load_sent_alerts()
-    if nominee not in log:
-        return False
-    prev_edge = log[nominee]["edge"]
-    # Re-alert if edge has grown by more than 5% since last alert
-    return abs(current_edge - prev_edge) < 5.0
+    if nominee not in log: return False
+    return abs(current_edge - log[nominee]["edge"]) < 5.0
 
-
-def format_sms(edges: list[dict]) -> str:
-    """Format edge list into a concise SMS message."""
-    lines = ["🎬 Awards Scanner — Edge Alert\n"]
-    for e in edges[:3]:   # max 3 per SMS to keep it readable
+def format_email(edges):
+    subject = f"🎬 Awards Scanner — {len(edges)} Edge{'s' if len(edges) > 1 else ''} Found"
+    body = "Awards Market Scanner — Edge Alert\n"
+    body += "=" * 50 + "\n\n"
+    for e in edges:
         sign = "+" if e["edge"] >= 0 else ""
-        lines.append(
-            f"★ {e['show']} | {e['category']}\n"
-            f"  {e['nominee']}\n"
-            f"  Model: {e['model_prob']}%  Kalshi: {e['kalshi_prob']}¢\n"
-            f"  Edge: {sign}{e['edge']}% ({e['confidence']} conf)\n"
-        )
-    if len(edges) > 3:
-        lines.append(f"...and {len(edges) - 3} more. Check your dashboard.")
-    return "\n".join(lines)
+        body += f"★ {e['show']} | {e['category']}\n"
+        body += f"  Nominee:    {e['nominee']}\n"
+        body += f"  Model:      {e['model_prob']}%\n"
+        body += f"  Kalshi:     {e['kalshi_prob']}¢\n"
+        body += f"  Edge:       {sign}{e['edge']}%\n"
+        body += f"  Confidence: {e['confidence']}\n\n"
+    body += "=" * 50 + "\n"
+    body += "Check your dashboard for full reasoning."
+    return subject, body
 
-
-def send_sms(message: str) -> bool:
-    """Send an SMS via Twilio. Returns True if successful."""
-    if TWILIO_ACCOUNT_SID == "your-twilio-sid-here":
-        print("  [SMS] Twilio not configured — printing alert instead:")
-        print("  " + message.replace("\n", "\n  "))
+def send_email(subject, body):
+    if not GMAIL_USER or not GMAIL_PASSWORD:
+        print("  [Email] Gmail not configured — printing alert:")
+        print("  " + body.replace("\n", "\n  "))
         return False
-
     try:
-        url = f"https://api.twilio.com/2010-04-01/Accounts/{TWILIO_ACCOUNT_SID}/Messages.json"
-        resp = requests.post(url,
-            auth=(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN),
-            data={
-                "From": TWILIO_FROM_NUMBER,
-                "To":   TWILIO_TO_NUMBER,
-                "Body": message,
-            },
-            timeout=15,
-        )
-        resp.raise_for_status()
-        print(f"  ✓ SMS sent to {TWILIO_TO_NUMBER}")
+        msg = MIMEMultipart()
+        msg["From"]    = GMAIL_USER
+        msg["To"]      = ALERT_TO_EMAIL
+        msg["Subject"] = subject
+        msg.attach(MIMEText(body, "plain"))
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+            server.login(GMAIL_USER, GMAIL_PASSWORD)
+            server.sendmail(GMAIL_USER, ALERT_TO_EMAIL, msg.as_string())
+        print(f"  ✓ Email sent to {ALERT_TO_EMAIL}")
         return True
     except Exception as e:
-        print(f"  [SMS error]: {e}")
+        print(f"  [Email error]: {e}")
         return False
 
-
-def alert_on_edges(edges: list[dict]):
-    """
-    Check edges, filter out already-alerted ones, send SMS for new ones.
-    """
+def alert_on_edges(edges):
     new_edges = [e for e in edges if not already_alerted(e["nominee"], e["edge"])]
-
     if not new_edges:
         print("  No new edges to alert on.")
         return
-
-    print(f"  Sending SMS alert for {len(new_edges)} new edge(s)...")
-    message = format_sms(new_edges)
-    success = send_sms(message)
-
+    print(f"  Sending email alert for {len(new_edges)} new edge(s)...")
+    subject, body = format_email(new_edges)
+    success = send_email(subject, body)
     if success:
         for e in new_edges:
             save_sent_alert(e["nominee"], e["edge"])
