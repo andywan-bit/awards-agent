@@ -1,2 +1,1 @@
-web: python ops.py
-worker: python agent.py --watch
+web: python ops.py & python agent.py --watch
