@@ -9,8 +9,12 @@ BASE_URL = "https://api.elections.kalshi.com/trade-api/v2"
 
 # ── Inline model (same logic as opportunities.py) ────────────
 SIGNAL_WEIGHTS = {
-    "sag_win": 0.28, "bafta_win": 0.22, "critics_choice": 0.18,
-    "guild_noms": 0.15, "rt_score": 0.10, "social_volume": 0.07,
+    "critics_choice": 0.413,
+    "sag_win":        0.285,
+    "social_volume":  0.091,
+    "guild_noms":     0.091,
+    "bafta_win":      0.086,
+    "rt_score":       0.034,
 }
 SHOW_CONFIDENCE = {"Oscars": 1.0, "Emmys": 0.9, "Golden Globes": 0.85, "Grammys": 0.70}
 
