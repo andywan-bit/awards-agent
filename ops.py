@@ -215,5 +215,17 @@ def api_ops():
         return jsonify({"status":"waiting","steps":[],"edges":[],"winners_found":[],"alerts_sent":0,"total_runs":0})
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
+    import threading
+    import subprocess
+    
+    # Start agent in background thread
+    def run_agent():
+        subprocess.run(["python", "agent.py", "--watch"])
+    
+    t = threading.Thread(target=run_agent, daemon=True)
+    t.start()
+    
+    # Start web server on Railway's PORT
+    port = int(os.environ.get("PORT", 8080))
+    print(f"Starting ops dashboard on port {port}")
     app.run(debug=False, host="0.0.0.0", port=port)
