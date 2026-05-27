@@ -10,12 +10,12 @@ BASE_URL = "https://newsapi.org/v2/everything"
 
 # Search queries for each awards show
 SEARCH_QUERIES = {
-    "Oscars":        ["Oscar winners", "Academy Awards results", "Oscar best picture winner"],
-    "Emmys":         ["Emmy winners", "Emmy Awards results", "Emmy best drama winner"],
-    "Grammys":       ["Grammy winners", "Grammy Awards results", "Grammy album of the year"],
-    "Golden Globes": ["Golden Globe winners", "Golden Globes results", "Golden Globe best picture"],
-    "MTV VMAs":      ["VMA winners", "MTV Video Music Awards results"],
-    "GTA 6":         ["GTA 6 release", "Grand Theft Auto 6 launch", "GTA VI sales"],
+    "Oscars":        ["Oscar winners 2027"],
+    "Emmys":         ["Emmy winners 2026"],
+    "Grammys":       ["Grammy winners 2027"],
+    "Golden Globes": ["Golden Globes winners 2027"],
+    "MTV VMAs":      ["VMA winners 2026"],
+    "GTA 6":         ["GTA 6 release"],
 }
 
 
