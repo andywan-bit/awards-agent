@@ -1,14 +1,12 @@
 import base64
 import datetime
 import requests
+import os
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.backends import default_backend
-import os
 
 BASE_URL = "https://trading-api.kalshi.com"
-KALSHI_API_KEY    = os.environ.get("KALSHI_API_KEY")
-KALSHI_KEY_ID     = os.environ.get("KALSHI_KEY_ID")
 
 def load_private_key(pem_string: str):
     pem_string = pem_string.replace("\\n", "\n")
@@ -31,11 +29,13 @@ def sign_request(private_key, timestamp_ms: str, method: str, path: str) -> str:
     return base64.b64encode(signature).decode("utf-8")
 
 def get_headers(method: str, path: str) -> dict:
+    key    = os.environ.get("KALSHI_API_KEY", "")
+    key_id = os.environ.get("KALSHI_KEY_ID", "")
     ts = str(int(datetime.datetime.now().timestamp() * 1000))
-    private_key = load_private_key(KALSHI_API_KEY)
+    private_key = load_private_key(key)
     sig = sign_request(private_key, ts, method, path)
     return {
-        "KALSHI-ACCESS-KEY":       KALSHI_KEY_ID,
+        "KALSHI-ACCESS-KEY":       key_id,
         "KALSHI-ACCESS-SIGNATURE": sig,
         "KALSHI-ACCESS-TIMESTAMP": ts,
         "Content-Type":            "application/json",
@@ -69,13 +69,16 @@ def fetch_markets_for_show(show: str) -> list[dict]:
         return []
 
 def fetch_all_award_markets() -> list[dict]:
-    from config import KALSHI_SEARCH_TERMS, KALSHI_API_KEY as KEY
-    if not KEY or KEY == "your-key-here":
-        from opportunities import DEMO_MARKETS
+    from config import KALSHI_SEARCH_TERMS
+    key = os.environ.get("KALSHI_API_KEY", "")
+    if not key or "BEGIN" not in key:
         print("  No Kalshi key — using demo data")
-        return DEMO_MARKETS
+        from edge_detector import DEMO_KALSHI
+        return [{"nominee": k, "kalshi_prob": v, "show": "", "category": ""}
+                for k, v in DEMO_KALSHI.items()]
     all_markets = []
     for show in KALSHI_SEARCH_TERMS:
+        print(f"  Fetching Kalshi markets for {show}...")
         markets = fetch_markets_for_show(show)
         all_markets.extend(markets)
     return all_markets
